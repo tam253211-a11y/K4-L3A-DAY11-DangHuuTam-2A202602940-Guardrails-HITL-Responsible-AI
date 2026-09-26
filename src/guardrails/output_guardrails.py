@@ -40,13 +40,19 @@ def content_filter(response: str) -> dict:
     redacted = response
 
     # PII patterns to check
+    # Thứ tự quan trọng: secret cụ thể trước, rồi password/api_key, rồi PII số.
+    # Dùng (?:...) để re.findall trả về chuỗi thay vì tuple.
     PII_PATTERNS = {
-        # TODO: Add regex patterns for:
-        # - VN phone number: r"0\d{9,10}"
-        # - Email: r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}"
-        # - National ID (CMND/CCCD): r"\b\d{9}\b|\b\d{12}\b"
-        # - API key pattern: r"sk-[a-zA-Z0-9-]+"
-        # - Password pattern: r"password\s*[:=]\s*\S+"
+        # Secret demo cụ thể — lưới an toàn khi LLM nói secret không kèm "password"
+        "internal_secret": r"\badmin123\b|\bdb\.vinbank\.internal(?::\d+)?",
+        "api_key": r"\bsk-[A-Za-z0-9-]+",
+        # "password is X", "password: X", "password=X", "mật khẩu là X"
+        "password": r"(?:password|mật\s*khẩu)\s*(?:is|là|[:=])\s*\S+",
+        "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+        # CCCD 12 số / CMND 9 số — kiểm tra trước phone
+        "national_id": r"\b\d{12}\b|\b\d{9}\b",
+        # SĐT VN 10–11 số bắt đầu bằng 0; \b để không ăn một phần CCCD
+        "phone": r"\b0\d{9,10}\b",
     }
 
     for name, pattern in PII_PATTERNS.items():
@@ -181,7 +187,28 @@ class OutputGuardrailPlugin(base_plugin.BasePlugin):
         #    - Increment self.blocked_count
         # 3. Return llm_response (possibly modified)
 
-        return llm_response  # TODO: modify if needed
+        filtered = content_filter(response_text)
+        if not filtered["safe"]:
+            self.redacted_count += 1
+            llm_response.content = types.Content(
+                role="model",
+                parts=[types.Part.from_text(text=filtered["redacted"])],
+            )
+            response_text = filtered["redacted"]
+
+        if self.use_llm_judge:
+            verdict = await llm_safety_check(response_text)
+            if not verdict["safe"]:
+                self.blocked_count += 1
+                llm_response.content = types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(
+                        text="I'm sorry, I can't share that. "
+                        "How else can I help with your VinBank banking needs?"
+                    )],
+                )
+
+        return llm_response
 
 
 # ============================================================
