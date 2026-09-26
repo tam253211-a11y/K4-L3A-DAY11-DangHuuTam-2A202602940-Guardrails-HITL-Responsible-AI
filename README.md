@@ -1,5 +1,33 @@
 # Day 11 — Controlled Agent Security (2026)
 
+## Bài nộp
+
+| | |
+|---|---|
+| **Học viên** | Đặng Hữu Tâm |
+| **MSSV** | 2A202602940 |
+| **Blue** | OpenRouter `liquid/lfm-2.5-2.6b:free` |
+| **Red / Red Advance** | Gemini `gemini-3.5-flash` (model lab mặc định) |
+| **Bonus chọn** | B1 — Red (5/5 prompt leak) |
+
+**Cách chạy** (từ gốc repo, sau khi kích hoạt `.venv` và điền `.env`):
+
+```powershell
+$env:PYTHONUTF8 = "1"          # Windows: đường dẫn repo có dấu tiếng Việt
+python src/main.py --part 2    # CP2 — guardrails (in terminal)
+python src/main.py --part 3    # CP3 — pipeline → outputs/results.json, audit_log.json, metrics.json
+python src/main.py --part 4    # CP4 — Red + Red Advance → outputs/attack_results.json
+python scripts/grade.py --submission-dir . --out outputs/grade_report.json
+```
+
+**Ghi chú thay đổi so với starter**
+
+- `src/core/config.py`: `BLUE_MODEL` đổi từ `liquid/lfm-2.5-2.6b` sang `liquid/lfm-2.5-2.6b:free` — cùng model, nhưng bản không hậu tố hiện không còn endpoint trên OpenRouter (lỗi `404 No endpoints found`).
+- Pipeline CP3: `RateLimit → InputGuardrail → OutputGuardrail` là plugin; audit + monitoring là observer bên cạnh do suite gọi. `blocked` chỉ tính khi chặn trước LLM; output filter che PII/secret được ghi riêng bằng `redacted`.
+- CP4: 2 lượt trên Red Advance (#2, #4) gặp lỗi phía Gemini (`503` / `429`), không phải do guardrail chặn.
+
+---
+
 > 👤 **Hình thức:** bài tập **cá nhân** (1 người / 1 MSSV).  
 > 🎯 **Mục tiêu:** xây **Blue** (phòng thủ), rồi red-team **Red** + **Red Advance**.  
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).
